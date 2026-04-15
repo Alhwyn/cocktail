@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-museum-bg: #e6edf2;
+  --color-museum-fg: #0a0a0a;
+  --color-museum-muted: #6b7280;
+}
+
+@layer base {
+  :root {
+    @apply font-sans text-museum-fg bg-museum-bg antialiased;
+  }
+
+  body {
+    @apply m-0 min-w-[320px] min-h-screen w-full;
+  }
+
+  #root {
+    @apply min-h-screen w-full;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
