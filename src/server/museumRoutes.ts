@@ -1,8 +1,13 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { sql } from "bun";
 import { Database } from "bun:sqlite";
 
 import { getMuseumDataRoot } from "../lib/museumDataRoot";
+
+function usePostgresForMuseum(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
 
 type Row = {
   id_drink: string;
@@ -39,27 +44,52 @@ function imageSrcForRow(root: string, row: Row): string {
   return row.thumb_url ?? "";
 }
 
+/** Thumbnail URLs only — for static hosting there is no `/api/museum/drink-image` route. */
+function imageSrcForStaticExport(root: string, row: Row): string {
+  if (row.image_local) {
+    const abs = path.join(root, row.image_local);
+    if (existsSync(abs)) {
+      return row.thumb_url ?? "";
+    }
+  }
+  return row.thumb_url ?? "";
+}
+
 type CocktailPayload = Record<string, unknown>;
+
+type CocktailIngredientDto = {
+  name: string;
+  measure: string;
+  image: string;
+};
 
 function textField(payload: CocktailPayload, key: string): string {
   const value = payload[key];
   return typeof value === "string" ? value.trim() : "";
 }
 
-function ingredientsFromPayload(payload: CocktailPayload): string[] {
-  const ingredients: string[] = [];
+function ingredientImageSrc(name: string): string {
+  return `https://www.thecocktaildb.com/images/ingredients/${encodeURIComponent(name)}-small.png`;
+}
+
+function ingredientsFromPayload(payload: CocktailPayload): CocktailIngredientDto[] {
+  const ingredients: CocktailIngredientDto[] = [];
   for (let i = 1; i <= 15; i++) {
-    const ingredient = textField(payload, `strIngredient${i}`);
-    if (!ingredient) continue;
+    const name = textField(payload, `strIngredient${i}`);
+    if (!name) continue;
     const measure = textField(payload, `strMeasure${i}`);
-    ingredients.push(measure ? `${measure} ${ingredient}` : ingredient);
+    ingredients.push({
+      name,
+      measure,
+      image: ingredientImageSrc(name),
+    });
   }
   return ingredients;
 }
 
 function detailsFromPayload(payloadJson: string): {
   description: string;
-  ingredients: string[];
+  ingredients: CocktailIngredientDto[];
 } {
   try {
     const payload = JSON.parse(payloadJson) as CocktailPayload;
@@ -80,47 +110,99 @@ export type MuseumCocktailDto = {
   name: string;
   image: string;
   description: string;
-  ingredients: string[];
+  ingredients: CocktailIngredientDto[];
 };
+
+export type MuseumCocktailsPayload =
+  | { ok: true; cocktails: MuseumCocktailDto[] }
+  | {
+      ok: false;
+      error: string;
+      dataRoot: string;
+      cocktails: [];
+    };
+
+/** When `DATABASE_URL` is set, reads `public.cocktails` (id_drink, name only — no payload in Postgres yet). */
+async function getMuseumCocktailsFromPostgres(): Promise<MuseumCocktailsPayload> {
+  const root = getMuseumDataRoot();
+  try {
+    const rows = await sql<{ id_drink: string; name: string }[]>`
+      select id_drink, name
+      from public.cocktails
+      order by lower(name)
+    `;
+    const cocktails: MuseumCocktailDto[] = rows.map(r => ({
+      id: String(r.id_drink ?? "").trim(),
+      name: String(r.name ?? "").trim(),
+      image: "",
+      description: "",
+      ingredients: [],
+    }));
+    return { ok: true, cocktails };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: `Postgres (DATABASE_URL): ${msg}`,
+      dataRoot: root,
+      cocktails: [],
+    };
+  }
+}
+
+export function getMuseumCocktailsPayload(staticExport: boolean): MuseumCocktailsPayload {
+  const root = getMuseumDataRoot();
+  const db = getDb(root);
+  if (!db) {
+    return {
+      ok: false,
+      error: "Museum database not found",
+      dataRoot: root,
+      cocktails: [],
+    };
+  }
+
+  const rows = db
+    .query(
+      `SELECT id_drink, name, image_local, thumb_url, payload_json
+       FROM cocktails
+       ORDER BY name COLLATE NOCASE`,
+    )
+    .all() as Row[];
+
+  const pickImage = staticExport ? imageSrcForStaticExport : imageSrcForRow;
+  const cocktails: MuseumCocktailDto[] = rows.map(row => {
+    const details = detailsFromPayload(row.payload_json);
+    return {
+      id: row.id_drink,
+      name: row.name,
+      image: pickImage(root, row),
+      description: details.description,
+      ingredients: details.ingredients,
+    };
+  });
+
+  return { ok: true, cocktails };
+}
+
+export async function getMuseumCocktailsPayloadResolved(
+  staticExport: boolean,
+): Promise<MuseumCocktailsPayload> {
+  if (usePostgresForMuseum()) {
+    return getMuseumCocktailsFromPostgres();
+  }
+  return getMuseumCocktailsPayload(staticExport);
+}
 
 export function museumRouteHandlers(): Record<string, unknown> {
   return {
     "/api/museum/cocktails": {
       async GET() {
-        const root = getMuseumDataRoot();
-        const db = getDb(root);
-        if (!db) {
-          return Response.json(
-            {
-              ok: false,
-              error: "Museum database not found",
-              dataRoot: root,
-              cocktails: [] as MuseumCocktailDto[],
-            },
-            { status: 503 },
-          );
+        const payload = await getMuseumCocktailsPayloadResolved(false);
+        if (!payload.ok) {
+          return Response.json(payload, { status: 503 });
         }
-
-        const rows = db
-          .query(
-            `SELECT id_drink, name, image_local, thumb_url, payload_json
-             FROM cocktails
-             ORDER BY name COLLATE NOCASE`,
-          )
-          .all() as Row[];
-
-        const cocktails: MuseumCocktailDto[] = rows.map(row => {
-          const details = detailsFromPayload(row.payload_json);
-          return {
-            id: row.id_drink,
-            name: row.name,
-            image: imageSrcForRow(root, row),
-            description: details.description,
-            ingredients: details.ingredients,
-          };
-        });
-
-        return Response.json({ ok: true, cocktails });
+        return Response.json(payload);
       },
     },
 

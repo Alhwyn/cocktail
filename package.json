@@ -8,7 +8,20 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "build": "bun run build.ts",
     "export:cocktaildb": "bun scripts/export-cocktaildb.ts",
-    "export:cocktaildb:json": "bun scripts/export-cocktaildb.ts --json-only"
+    "export:cocktaildb:json": "bun scripts/export-cocktaildb.ts --json-only",
+    "upload:cocktails:supabase": "bun scripts/upload-cocktails-to-supabase.ts",
+    "cocktails:sql:generate": "bun scripts/generate-supabase-cocktails-sql.ts",
+    "cocktails:upload:cli": "bun scripts/generate-supabase-cocktails-sql.ts && supabase db query --linked -f supabase/.temp/cocktails_from_sqlite.sql",
+    "supabase": "supabase",
+    "supabase:link": "supabase link",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:local-env": "supabase status -o env --override-name api.url=SUPABASE_URL --override-name db.url=DATABASE_URL --override-name auth.anon_key=SUPABASE_ANON_KEY --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY",
+    "supabase:db:reset": "supabase db reset",
+    "supabase:migration:list": "supabase migration list",
+    "supabase:db:push:dry-run": "supabase db push --dry-run",
+    "supabase:db:push": "supabase db push"
   },
   "dependencies": {
     "bun-plugin-tailwind": "^0.1.2",
@@ -17,8 +30,9 @@
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/bun": "latest"
+    "supabase": "^2.91.2"
   }
 }

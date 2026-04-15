@@ -2,7 +2,15 @@ const links = [
   { href: "#spirits", label: "Spirits", active: true },
 ] as const;
 
-export function Navbar() {
+type NavbarProps = {
+  museumSearchQuery: string;
+  onMuseumSearchQueryChange: (value: string) => void;
+};
+
+export function Navbar({
+  museumSearchQuery,
+  onMuseumSearchQueryChange,
+}: NavbarProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-black/5 bg-museum-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
@@ -32,12 +40,25 @@ export function Navbar() {
           ))}
         </nav>
 
-        <button
-          type="button"
-          className="shrink-0 rounded-full bg-museum-fg px-4 py-2 text-sm font-medium text-museum-bg transition-opacity hover:opacity-90"
-        >
-          Sign In
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <label className="sr-only" htmlFor="museum-search">
+            Search the cocktail museum
+          </label>
+          <input
+            id="museum-search"
+            type="search"
+            value={museumSearchQuery}
+            onChange={event => onMuseumSearchQueryChange(event.target.value)}
+            placeholder="Search museum"
+            className="w-36 rounded-full border border-black/10 bg-white/90 px-3 py-2 text-sm text-museum-fg outline-none transition focus:border-museum-fg/30 focus:ring-2 focus:ring-museum-fg/10 sm:w-44"
+          />
+          <button
+            type="button"
+            className="shrink-0 rounded-full bg-museum-fg px-4 py-2 text-sm font-medium text-museum-bg transition-opacity hover:opacity-90"
+          >
+            Sign In
+          </button>
+        </div>
       </div>
     </header>
   );

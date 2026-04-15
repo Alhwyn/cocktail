@@ -2,7 +2,12 @@ import { serve } from "bun";
 import index from "./index.html";
 import { museumRouteHandlers } from "./server/museumRoutes";
 
+const port = Number(process.env.PORT) || 3000;
+const hostname = process.env.HOST ?? "0.0.0.0";
+
 const server = serve({
+  hostname,
+  port,
   routes: {
     ...museumRouteHandlers(),
 

@@ -1,0 +1,4 @@
+-- Optional local seed data. `supabase db reset` runs this after migrations.
+-- To load cocktails locally, start the stack then either:
+--   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres bun run upload:cocktails:supabase
+-- or add INSERTs here.

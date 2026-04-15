@@ -1,9 +1,15 @@
+export type CocktailIngredient = {
+  name: string;
+  measure: string;
+  image: string;
+};
+
 export type CocktailCard = {
   id: string;
   name: string;
   image: string;
   description: string;
-  ingredients: string[];
+  ingredients: CocktailIngredient[];
   x: number;
   y: number;
 };
@@ -13,7 +19,7 @@ export type MuseumCocktailInput = {
   name: string;
   image: string;
   description: string;
-  ingredients: string[];
+  ingredients: CocktailIngredient[];
 };
 
 function jitter(seed: number): number {

@@ -16,6 +16,7 @@ coverage
 # logs
 logs
 _.log
+.cursor/hooks/api-key-audit.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # dotenv environment variable files
@@ -35,3 +36,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+.vercel
+.env*.local

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/scan-api-keys.py"
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": ".cursor/hooks/scan-api-keys.py"
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": ".cursor/hooks/scan-api-keys.py"
+      }
+    ]
+  }
+}

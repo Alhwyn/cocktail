@@ -1,5 +1,9 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { museumLayoutFromItems, type CocktailCard } from "../data/cocktails";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  museumLayoutFromItems,
+  type CocktailIngredient,
+  type MuseumCocktailInput,
+} from "../data/cocktails";
 import { useCanvasPanZoom } from "../hooks/useCanvasPanZoom";
 import { HeroCanvas } from "./HeroCanvas";
 import { ZoomControls } from "./ZoomControls";
@@ -11,17 +15,19 @@ type MuseumApiOk = {
     name: string;
     image: string;
     description: string;
-    ingredients: string[];
+    ingredients: CocktailIngredient[];
   }[];
 };
 type MuseumApiErr = { ok: false; error?: string; cocktails?: [] };
 
-export function HeroSection() {
+type HeroSectionProps = {
+  searchQuery: string;
+};
+
+export function HeroSection({ searchQuery }: HeroSectionProps) {
   const heroRef = useRef<HTMLDivElement>(null);
-  const [cocktails, setCocktails] = useState<CocktailCard[]>([]);
+  const [allCocktails, setAllCocktails] = useState<MuseumCocktailInput[]>([]);
   const [selectedCocktailId, setSelectedCocktailId] = useState<string | null>(null);
-  const [canvasWidth, setCanvasWidth] = useState(1200);
-  const [canvasHeight, setCanvasHeight] = useState(800);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const { transform, setTransform, dragging, pointerHandlers, onWheel, zoomByFactorAtRect } =
@@ -35,23 +41,29 @@ export function HeroSection() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/museum/cocktails");
-        const body = (await res.json()) as MuseumApiOk | MuseumApiErr;
+        let body: MuseumApiOk | MuseumApiErr | null = null;
+        const apiRes = await fetch("/api/museum/cocktails");
+        if (apiRes.ok) {
+          const parsed = (await apiRes.json()) as MuseumApiOk | MuseumApiErr;
+          if (parsed.ok) body = parsed;
+        }
+        if (!body?.ok) {
+          const staticRes = await fetch("/museum-cocktails.json");
+          if (staticRes.ok) {
+            body = (await staticRes.json()) as MuseumApiOk | MuseumApiErr;
+          }
+        }
         if (cancelled) return;
-        if (!res.ok || !body.ok) {
+        if (!body?.ok) {
           setLoadError(
-            "error" in body && body.error ? body.error : "Could not load museum cocktails",
+            body && "error" in body && body.error
+              ? body.error
+              : "Could not load museum cocktails",
           );
           return;
         }
         const usable = body.cocktails.filter(c => c.image);
-        const { cocktails: laidOut, width, height } = museumLayoutFromItems(usable);
-        setCocktails(laidOut);
-        setSelectedCocktailId(current =>
-          laidOut.some(c => c.id === current) ? current : null,
-        );
-        setCanvasWidth(width);
-        setCanvasHeight(height);
+        setAllCocktails(usable);
         setLoadError(null);
       } catch {
         if (!cancelled) setLoadError("Could not load museum cocktails");
@@ -61,6 +73,25 @@ export function HeroSection() {
       cancelled = true;
     };
   }, []);
+
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredCocktails = useMemo(
+    () =>
+      normalizedSearchQuery
+        ? allCocktails.filter(c => c.name.toLowerCase().includes(normalizedSearchQuery))
+        : allCocktails,
+    [allCocktails, normalizedSearchQuery],
+  );
+  const { cocktails, width: canvasWidth, height: canvasHeight } = useMemo(
+    () => museumLayoutFromItems(filteredCocktails),
+    [filteredCocktails],
+  );
+
+  useLayoutEffect(() => {
+    setSelectedCocktailId(current =>
+      cocktails.some(c => c.id === current) ? current : null,
+    );
+  }, [cocktails]);
 
   useLayoutEffect(() => {
     const el = heroRef.current;
@@ -110,6 +141,14 @@ export function HeroSection() {
             {loadError}
           </p>
         )}
+        {!loadError && allCocktails.length > 0 && cocktails.length === 0 && (
+          <p
+            className="absolute inset-x-0 top-4 z-20 mx-auto max-w-md rounded-lg bg-museum-fg/10 px-4 py-2 text-center text-sm text-museum-fg"
+            role="status"
+          >
+            No cocktails matched "{searchQuery.trim()}".
+          </p>
+        )}
         <HeroCanvas
           cocktails={cocktails}
           selectedCocktailId={selectedCocktailId}
@@ -146,9 +185,30 @@ export function HeroSection() {
                 <div>
                   <h3 className="text-sm font-semibold text-museum-fg">Ingredients</h3>
                   {selectedCocktail.ingredients.length > 0 ? (
-                    <ul className="mt-2 space-y-1.5 text-sm text-museum-muted">
+                    <ul className="mt-2 space-y-2">
                       {selectedCocktail.ingredients.map(ingredient => (
-                        <li key={ingredient}>{ingredient}</li>
+                        <li
+                          key={`${selectedCocktail.id}-${ingredient.name}-${ingredient.measure}`}
+                          className="flex items-center gap-3 rounded-xl bg-black/[0.03] px-2.5 py-2"
+                        >
+                          <img
+                            src={ingredient.image}
+                            alt={ingredient.name}
+                            width={40}
+                            height={40}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-10 w-10 rounded-lg bg-white object-cover ring-1 ring-black/5"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-museum-fg">
+                              {ingredient.name}
+                            </p>
+                            <p className="text-sm text-museum-muted">
+                              {ingredient.measure || "Amount not specified"}
+                            </p>
+                          </div>
+                        </li>
                       ))}
                     </ul>
                   ) : (
